@@ -8,6 +8,37 @@ Overarching Goal: Systematically define, review, and lock in architectural decis
 
 Micro-Delegation Rule: During any phase, if a specific design debate arises (e.g., naming conventions, schema structures, native vs. bespoke implementations), spawn a subagent to generate a focused, side-by-side analysis of the options. Present the subagent's findings to the Lead Architect for a decision.
 
+## Directory State Structure & Naming Convention
+
+Every RFC and retrospective file MUST be prefixed with its creation date in `YYYY-MM-DD-` format (e.g., `2026-10-17-my-feature.md`) and placed in the directory corresponding to its current lifecycle state:
+
+- `draft/YYYY-MM-DD-<slug>.md`: RFCs currently being drafted, reviewed, or awaiting failure scenario reproduction. Must include `[DRAFT]` in the H1 title.
+- `reproduced/YYYY-MM-DD-<slug>.md`: `Flaw` RFCs whose primary runtime failure has been deterministically reproduced via an `xfail` (`#[should_panic(expected = "Scenario Failed")]`) scenario test in `synapto/crates/test`. Must include `[DRAFT]` in the H1 title until Phase 6 approval.
+- `approved/YYYY-MM-DD-<slug>.md`: RFCs formally approved by the Lead Architect (`[DRAFT]` removed from H1 title) that are queued for or undergoing implementation.
+- `implemented/YYYY-MM-DD-<slug>.md`: Completed RFCs where all Definition of Done (DoD) items, passing scenario tests (`#[should_panic]` removed and test/scenario renamed to canonical `<slug>` without the `rfc_<date>_` / `YYYY-MM-DD-` prefix), and Solution Verification checks have passed.
+- `retrospectives/YYYY-MM-DD-<slug>-retro.md`: Post-implementation retrospectives documenting architectural evolution, rejected options, and mid-execution pivots.
+
+When an RFC transitions between states:
+- For `Flaw` RFCs: `draft/` -> `reproduced/` -> `approved/` -> `implemented/`
+- For `Guideline` and `Feature` RFCs (where no existing runtime flaw exists to reproduce): `draft/` -> `approved/` -> `implemented/`
+Preserve the original `YYYY-MM-DD-` creation date prefix and update the index table in `README.md`.
+
+## Zero-Context Resumability Mandate (Draft Checkpoints & Approved Handover)
+
+Every RFC must support starting a brand-new agent session (with zero prior conversation history) using only a prompt such as `"Continue with RFC <filename>"` at two boundaries:
+
+1. **During Draft Phases (`draft/`, Phases 1-6):**
+   - **No Context Only in Chat History:** Whenever an agent gathers audit findings, file paths, line numbers, defective code snippets, or design constraints prior to pausing (such as at the Phase 2 Architectural Fork Checkpoint), 100% of those concrete details MUST be written directly into Section 3 (*Current State Analysis*), Section 4 (*Structural Hierarchy*), and Section 5 (*Data Models*) of the draft file before yielding to the user. Never summarize findings in Section 2 while leaving the file paths and line numbers only in the chat transcript.
+   - **Draft Status Header Block:** Every `[DRAFT]` file in `draft/` MUST include a top-level status block immediately below the H1 title indicating the exact current phase, blocking checkpoint, and next action upon resume:
+     ```markdown
+     > **Draft Status:** Phase 2 — Awaiting Lead Architect decision on Architectural Fork Checkpoint (Section 5.4).
+     > **Next Step on Resume:** Apply selected fork option, complete Sections 6–10 (Phases 3–5), run zero-context subagent review, and present for Phase 6 approval.
+     ```
+2. **At Approved Handover (`approved/`, Phase 6 -> Phase 7 Boundary):**
+   - When an RFC is finalized and moved from `draft/` to `approved/`, remove `[DRAFT]` from the H1 title and remove the `> **Draft Status:**` block.
+   - The resulting `approved/` document MUST be 100% self-standing (verified by the Phase 3 zero-context subagent review) so a brand-new session can execute the entire Phase 7 implementation from start to finish without needing prior chat context.
+   - Tracking partial mid-implementation progress inside the RFC during Phase 7 is not required.
+
 ## Standard RFC Template
 
 All RFCs MUST adhere to the following 10-section Markdown structure:
@@ -25,6 +56,11 @@ All RFCs MUST adhere to the following 10-section Markdown structure:
 
 ## Hierarchy of Truth & Scope Containment
 
+- **Atomic Single-Problem RFC Mandate (1 Problem = 1 RFC):** Every RFC MUST address **exactly one specific problem, defect, or architectural invariant**. Never bundle multiple independent problems, unrelated subsystems, or mix runtime functional flaws with architectural guideline/style cleanups in a single RFC.
+  - **Flaw vs. Guideline Classification:** Every RFC must declare its classification in its top-level status block and in `README.md`:
+    - `Flaw`: Fixes a runtime bug, concurrency race, deadlock, data loss, resource leak, or security vulnerability.
+    - `Guideline`: Enforces an architectural boundary, interface purity rule, configuration explicitness rule, strong typing rule, or documentation invariant.
+    - `Feature`: Introduces a net-new capability or subsystem.
 - **Prose Authority:** The descriptive text, intent, and motivation defined in the **User-Centric Motivation & Goal**, **Executive Summary**, **Current State Analysis**, **Structural Hierarchy**, and **Data Models** (Sections 1, 2, 3, 4, and 5) MUST always take precedence over code blocks, diagrams, or the Definition of Done (DoD). If a code example or a DoD item introduces a complexity or dependency (e.g., unnecessary wrappers, additional fields) not explicitly justified in the prose, it MUST be discarded.
 - **Literal Interpretation:** Do not "bundle" architectural patterns from other subsystems unless they are explicitly required by the current task's problem definition.
 - **No Complete Implementations (License Tainting Avoidance):** The RFC MUST NOT contain a full, complete implementation of the proposed change to avoid tainting by other licenses. See README.md. Keep code examples brief and focused strictly on API boundaries and data contracts.
@@ -36,7 +72,7 @@ All RFCs MUST adhere to the following 10-section Markdown structure:
 
 ### Phase 1: Problem Definition & Structural Hierarchy (Initial Draft)
 
-- **File Creation:** Immediately create the markdown file in the `text` directory (e.g., `text/my-feature.md`). Mark the document clearly as a `[DRAFT]`. For initial versions focusing on functional core, explicitly mark them as `[MVP]`.
+- **File Creation:** Immediately create the markdown file in the `draft` directory with the current date prefix in `YYYY-MM-DD-` format (e.g., `draft/2026-10-17-my-feature.md`) and add an entry to `README.md`. Mark the document clearly as a `[DRAFT]` in the H1 header. For initial versions focusing on functional core, explicitly mark them as `[MVP]`.
 - **User-Centric Motivation:** Start by explicitly defining the human-level goal in Section 1. Explain _why_ the user will care about this change in plain language.
 - **Executive Summary:** Isolate, ground, and articulate the following six pillars in Section 2:
   - **Context:** The current structural state and operational baseline of the subsystem.
@@ -96,27 +132,56 @@ All RFCs MUST adhere to the following 10-section Markdown structure:
 - **Audit Logging:** The RFC MUST explicitly list the file paths of all external modules that currently import or depend on the targeted subsystem, proving the dependency web was mechanically checked.
 - **Systemic Consequences:** Explicitly document how the proposed change affects other parts of the system. Identify any breaking changes to internal APIs, shared data structures, or plugin interfaces. Assess the impact on system-wide performance (latency, memory) and state consistency.
 - **Documentation:** Explicitly state what high-level (`docs/`) or low-level documentation must be updated, created, or verified. Ensure proper separation of concerns per `DOCUMENTATION.md` (e.g., Architectural Anti-patterns and structural invariants belong in `ARCHITECTURE.md`, while code-level Best Practice recipes and practical examples belong in `CREATE_PLUGIN.md`). If no documentation changes are needed, explicitly state why.
-- **Execution Checklist:** Construct a binary, non-negotiable Definition of Done (DoD). This checklist MUST include the concrete implementation target (e.g., migrating a specific plugin) that proves the design works in practice. Specify _what_ files are moved _where_ and what docs are updated.
+- **Execution Checklist:** Construct a binary, non-negotiable Definition of Done (DoD). This checklist MUST include the concrete implementation target (e.g., migrating a specific plugin) that proves the design works in practice. Specify _what_ files are moved _where_ and what docs are updated. For `Flaw` RFCs, the DoD MUST include:
+  1. Removing `#[should_panic(expected = "Scenario Failed")]` from `rfc_<YYYY_MM_DD_rfc_slug_with_underscores>` in `synapto/crates/test/tests/scenario_tests.rs`.
+  2. Verifying that the scenario test passes cleanly.
+  3. Renaming the scenario directory from `tests/scenarios/<YYYY-MM-DD-rfc-slug>` to `tests/scenarios/<rfc-slug>`, updating `name` in `scenario.yaml`, and renaming the test function from `rfc_<YYYY_MM_DD_rfc_slug_with_underscores>` to its canonical name `<rfc_slug_with_underscores>`.
 - **Scope:** Include dependencies, data models, persistence mechanisms, event integrations, command mutations, and specific test simulations required to validate the feature.
 - **Output:** Sections 9 and 10 of the RFC document.
 
+### Phase 5.5: Failure Scenario Reproduction (`Flaw` RFCs Only)
+
+- **Activation Condition:** Mandatory for all RFCs classified as `Flaw` where the defect manifests at runtime. Skipped for `Guideline` and `Feature` RFCs (which transition directly from `draft/` to `approved/` upon Phase 6 approval).
+- **Objective:** Create a scenario test in `synapto/crates/test` that deterministically reproduces the primary failure(s) described in the RFC on the current unmodified codebase before seeking Lead Architect approval to modify production code:
+  1. Create `synapto/crates/test/tests/scenarios/<YYYY-MM-DD-rfc-slug>/scenario.yaml` with `name: "<YYYY-MM-DD-rfc-slug>"` and steps (`user_writes`, `user_says`, `wait`, `await_response`) that trigger the defect and fail the final assertion.
+  2. Register the test in `synapto/crates/test/tests/scenario_tests.rs` named `rfc_<YYYY_MM_DD_rfc_slug_with_underscores>` and mark it as `xfail` using `#[should_panic(expected = "Scenario Failed")]`:
+     ```rust
+     #[ignore]
+     #[should_panic(expected = "Scenario Failed")]
+     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+     async fn rfc_<YYYY_MM_DD_rfc_slug_with_underscores>() {
+         run_scenario(
+             "tests/scenarios/<YYYY-MM-DD-rfc-slug>/scenario.yaml",
+             test_bundle,
+         )
+         .await;
+     }
+     ```
+  3. Do not add custom `xfail` fields to `ScenarioManifest` or modify core code; use the direct implementation.
+  4. Run `just test-scenarios -p synapto-test rfc_<YYYY_MM_DD_rfc_slug_with_underscores>` in `synapto` to verify that the scenario fails with `Scenario Failed` and passes the `#[should_panic]` assertion.
+  5. **State Transition:** Move the RFC file from `draft/YYYY-MM-DD-<slug>.md` to `reproduced/YYYY-MM-DD-<slug>.md` and update `README.md`.
+- **Exception Handling:** If a `Flaw` RFC targets a low-level component that cannot be triggered through `ScenarioManifest` steps, explain why to the Lead Architect and either provide a deterministic `#[should_panic]` unit/integration test in the target crate or request an explicit Phase 5.5 exemption.
+
 ### Phase 6: Final Review & Approval Gate
 
-- **Presentation:** Present the completed RFC to the user (Lead Architect).
+- **Presentation:** Present the completed RFC (and for `Flaw` RFCs, the verified `reproduced/` scenario test) to the user (Lead Architect).
 - **Authorization:** Explicitly ask for approval to proceed. DO NOT advance to execution without clear human authorization. Approval must be conscious and specific; "OK" or generic affirmations are insufficient. The user must explicitly state they have reviewed and approved the design for implementation.
 
 ### Phase 7: Execution & Amendment Fallback
 
-- **Plan Lock-In:** Remove the `[DRAFT]` tag from the RFC document and freeze the design.
+- **Plan Lock-In:** Remove the `[DRAFT]` tag and `> **Draft Status:**` block from the RFC document, move the file from `reproduced/YYYY-MM-DD-<slug>.md` (or `draft/YYYY-MM-DD-<slug>.md` for `Guideline`/`Feature` RFCs) to `approved/YYYY-MM-DD-<slug>.md`, update `README.md`, and freeze the design.
 - **Pre-Implementation Recheck:** Before starting implementation, perform a final audit of the current codebase to ensure all assumptions, data models, and architectural boundaries defined in the RFC still apply and have not been invalidated by recent changes.
-- **Iterative Implementation:** Execute the DoD sequentially. Apply `Proactive Change Implementation` to code changes.
+- **Iterative Implementation:** Execute the DoD sequentially. Apply `Proactive Change Implementation` to code changes. For `Flaw` RFCs:
+  1. Remove `#[should_panic(expected = "Scenario Failed")]` from `rfc_<YYYY_MM_DD_rfc_slug_with_underscores>` in `synapto/crates/test/tests/scenario_tests.rs`.
+  2. Run `just test-scenarios -p synapto-test rfc_<YYYY_MM_DD_rfc_slug_with_underscores>` to confirm the scenario now passes cleanly.
+  3. Rename `synapto/crates/test/tests/scenarios/<YYYY-MM-DD-rfc-slug>` to `synapto/crates/test/tests/scenarios/<rfc-slug>`, update `name` in `scenario.yaml` to `"<rfc-slug>"`, rename the test function to `<rfc_slug_with_underscores>`, and re-run `just test-scenarios -p synapto-test <rfc_slug_with_underscores>`.
 - **Drift Check:** If implementation reveals a superior approach (e.g., native protocol vs. custom schema), immediately halt execution to amend the RFC. The codebase and the RFC MUST remain synchronized.
 - **Validation:** Execute the `Solution Verification Protocol` upon completion to ensure the codebase mirrors the accepted RFC constraints.
-- **Amendment/Rollback Procedure:** If execution reveals fatal flaws, immediately halt. Unfreeze the RFC, document the blocking issue, propose an architectural amendment, and cycle back to Phase 2 or 3 (to actively redesign the data models and diagrams) before seeking Phase 6 re-approval.
+- **Amendment/Rollback Procedure:** If execution reveals fatal flaws, immediately halt. Unfreeze the RFC (re-add `[DRAFT]` and move the file from `approved/` back to `draft/`), document the blocking issue, propose an architectural amendment, and cycle back to Phase 2 or 3 (to actively redesign the data models and diagrams) before seeking Phase 6 re-approval.
 
 ### Phase 8: Retrospective Generation & Process Improvement
 
-- **Documentation:** Once the RFC is frozen and the `Solution Verification Protocol` has passed, create a `docs/rfcs/retrospectives/<rfc-name>-retro.md` document.
+- **State Transition & Documentation:** Once implementation is complete and the `Solution Verification Protocol` has passed, move the RFC from `approved/YYYY-MM-DD-<slug>.md` to `implemented/YYYY-MM-DD-<slug>.md`, create a `retrospectives/YYYY-MM-DD-<slug>-retro.md` document (using the date the retrospective is created), and update `README.md`.
 - **Content:** Document the iterative evolution of the RFC. Explicitly record rejected approaches and the reasons for their rejection. The retrospective must accurately reconcile the initial RFC proposal with the final implemented code, documenting the 'Why' behind any mid-execution pivots.
 - **Attribution:** Clearly attribute the source of pivotal ideas, corrections, and paradigm shifts (e.g., Main Agent, Subagent, Lead Architect).
 - **Process Evolution:** After writing the retrospective, analyze the interaction meta-process itself. If workflow bottlenecks, miscommunications, or repeated mistakes occurred, explicitly propose concrete improvements to `AGENTS.md` (as was done during the stateless document retrieval RFC) to iteratively refine the RFC protocol for future designs.

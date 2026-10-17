@@ -1,5 +1,8 @@
 # [DRAFT] RFC: Declarative Plugin Startup Macro
 
+> **Draft Status:** Phase 6 — All 10 sections drafted; awaiting Lead Architect review and approval to move to `approved/2026-07-20-plugin-startup-macro.md`.
+> **Next Step on Resume:** Perform Pre-Implementation Recheck against current `PluginRegistry` in `synapto-interface` and seek explicit Phase 6 approval from the Lead Architect.
+
 ## 1. User-Centric Motivation & Goal
 
 When developers build complex plugins providing multiple capabilities (e.g., Chat and Document Provisioning), they currently write tedious and error-prone boilerplate to safely collect all necessary communication channels before executing their background tasks. 
