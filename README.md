@@ -40,6 +40,7 @@ See [`AGENTS.md`](AGENTS.md) for the complete RFC lifecycle protocol, Failure Sc
 | `2026-10-17` | [`2026-10-17-non-blocking-plugin-start-and-async-io-offloading.md`](draft/2026-10-17-non-blocking-plugin-start-and-async-io-offloading.md) | `Guideline` | Non-Blocking Plugin Task Spawning and Async I/O Offloading | Phase 2 (Fork Checkpoint) | `stt-*`, `tts-*`, `call-recorder`, `skills`, `mumble`, `google-mail` |
 | `2026-10-17` | [`2026-10-17-interface-encapsulation-typestate-and-strong-typing.md`](draft/2026-10-17-interface-encapsulation-typestate-and-strong-typing.md) | `Guideline` | Interface Encapsulation, Builder Typestate, Opaque Resource IDs, and Strong Typing | Phase 2 (Fork Checkpoint) | `synapto-interface`, `synapto`, `documents`, `semantic-memory`, `google-meet` |
 | `2026-10-17` | [`2026-10-17-error-visibility-lint-compliance-and-architecture-doc-sync.md`](draft/2026-10-17-error-visibility-lint-compliance-and-architecture-doc-sync.md) | `Guideline` | Error Visibility, Workspace Lint Compliance, and Architecture Documentation Synchronization | Phase 2 (Fork Checkpoint) | `synapto-test`, `ARCHITECTURE.md`, `synapto-interface`, storage/STT/memory plugins |
+| `2026-10-20` | [`2026-10-20-unified-function-calling-for-commands-and-tools.md`](draft/2026-10-20-unified-function-calling-for-commands-and-tools.md) | `Feature` | Unified Function Calling for Speech, Chat, Commands, and Tools | Phase 2 (Fork Checkpoint) | `synapto`, `synapto-llm`, `synapto-test` |
 
 ---
 

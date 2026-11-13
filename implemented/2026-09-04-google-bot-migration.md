@@ -1,9 +1,11 @@
 # [MVP] Google First-Class Bot Migration for Google Plugins and Deployment Scripts
 
 ## 1. User-Centric Motivation & Goal
+
 Users interact with the assistant in Google Workspace (Google Chat). Currently, the assistant uses personal OAuth credentials and acts as a clone of a human user. This causes confusion because messages from the assistant appear as messages from the user. Setup scripts also require manual OAuth consent screens and user-linked refresh token generation. Migrating to first-class Google Chat App (bot) authentication allows the assistant to operate under its own official bot identity. The assistant will receive direct mentions and space messages cleanly, post messages with its own avatar and name, and manage reactions without impersonating team members. The bot identity is strictly decoupled from the VM infrastructure identity to preserve security boundaries and identity isolation.
 
 ## 2. Executive Summary
+
 - **Context:** `allusio-ai/org-assistant`, its deployment scripts (`scripts/setup_gcp_project.sh`), and `synapto-plugins/google-chat` connect to Google Cloud and Google Workspace APIs. Currently, authentication uses 3-legged OAuth refresh tokens associated with a human user account (`ASSISTANT_USER_EMAIL`).
 - **Motivation:** Impersonating a human user creates security risks, requires manual OAuth consent flows, creates confusion in group spaces, and complicates infrastructure automation. Relying on ambient VM identities for bot logic conflates infrastructure privileges with application-layer bot capabilities.
 - **Overarching Goals:** Standardize all Google Workspace bot operations on explicit, dedicated Google Chat Bot Service Account authentication. Maintain strict separation between the Infrastructure Identity (VM runner) and the Bot Identity (Google Chat App).
@@ -17,6 +19,7 @@ Users interact with the assistant in Google Workspace (Google Chat). Currently, 
   - Remove `ASSISTANT_USER_EMAIL` requirements from `scripts/load_client_config.sh`.
 
 ## 3. Current State Analysis
+
 - **Runtime Authentication Flow:**
   - `GoogleChatConfig` contains `google_auth::oauth_client::OAuthClientCredentials` with `client_id`, `client_secret`, and `refresh_token`.
   - `OAuthClient` requests bearer tokens from `https://oauth2.googleapis.com/token` via `grant_type=refresh_token`.
@@ -34,6 +37,7 @@ Users interact with the assistant in Google Workspace (Google Chat). Currently, 
   - **Misconfigured Infrastructure IAM:** Granting Pub/Sub subscriber to a human user prevents automated headless Service Account execution.
 
 ## 4. Structural Hierarchy
+
 - **Mission:** Explicit Separation of Bot Identity from Infrastructure Identity.
 - **Goal:** Decouple runtime and setup scripts from user OAuth and enforce dedicated Service Account authentication for the Bot.
 - **Atomic Responsibilities:**
@@ -55,6 +59,7 @@ Users interact with the assistant in Google Workspace (Google Chat). Currently, 
 ## 5. Data Models
 
 ### Google Bot Service Account Schema
+
 ```rust
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct GoogleServiceAccountCredentials {
@@ -80,6 +85,7 @@ pub struct GoogleChatConfig {
 ```
 
 ### JSON Configuration Example (`config.json`)
+
 ```json
 {
   "plugins": {
@@ -102,6 +108,7 @@ pub struct GoogleChatConfig {
 ```
 
 ### Client Inventory Configuration Example (`encrypted.clients.json`)
+
 ```json
 {
   "TACR": {
@@ -116,6 +123,7 @@ pub struct GoogleChatConfig {
 ```
 
 ## 6. Component Architecture
+
 - **JWT Token Minting:** `GoogleAuthClient` signs a RSA-SHA256 JWT using `jsonwebtoken` with `private_key`, `client_email`, and scopes `https://www.googleapis.com/auth/chat.bot https://www.googleapis.com/auth/pubsub`. It posts the assertion to `token_uri` to obtain a short-lived Bearer token.
 - **Event Ingestion (Pub/Sub):** The plugin pulls messages from `projects/{google_project_id}/subscriptions/chat-events-sub` using the Bot Service Account token. Native Google Chat App Pub/Sub event delivery is configured directly in Google Cloud Console, removing the `workspaceevents.googleapis.com` subscription maintenance loop.
 - **Self-Message Filtering:** When an event is received, `read.rs` ignores messages where the sender's type is `BOT` or matches `users/{client_id}`, preventing recursive loops.
@@ -126,6 +134,7 @@ pub struct GoogleChatConfig {
 ## 7. Architectural Diagrams
 
 ### System Channel Wiring and Message Flow
+
 ```mermaid
 flowchart TD
     Config[GoogleChatConfig Credentials] --> AuthClient[GoogleAuthClient]
@@ -149,6 +158,7 @@ flowchart TD
 ```
 
 ### Identity Separation Boundary
+
 ```mermaid
 flowchart LR
     subgraph Host Infrastructure
@@ -168,6 +178,7 @@ flowchart LR
 ```
 
 ## 8. Robustness & Pragmatic Security Trade-offs
+
 - **Identity Isolation (Security Rule):** Bot credentials are explicitly injected via configuration and never inferred from host VM metadata. If the VM is compromised, bot credentials do not grant VM admin permissions, and VM permissions do not grant Chat App privileges.
 - **Accepted Risks (MVP):**
   - **In-Memory Token Cache:** Token caching uses an in-memory `RwLock<Option<AccessTokenInfo>>` with expiry check rather than a distributed token store.
@@ -178,6 +189,7 @@ flowchart LR
   - Pub/Sub subscription message retention is capped at 10 minutes with auto-ack to prevent backlog buildup during assistant restarts.
 
 ## 9. Systemic Consequences
+
 - **Codebase Audit Results:**
   - `allusio-ai/synapto-plugins/google-chat/Cargo.toml`: Add `jsonwebtoken` dependency for RSA JWT signing.
   - `allusio-ai/synapto-plugins/google-chat/src/google_auth/oauth_client.rs`: Refactored to `GoogleAuthClient` generating Service Account Bearer tokens.
@@ -193,6 +205,7 @@ flowchart LR
   - Update `allusio-ai/org-assistant/README.md` or setup instructions to document the Service Account bot setup process.
 
 ## 10. Definition of Done (DoD)
+
 - [x] 1. Add `jsonwebtoken` to `synapto-plugin-google-chat/Cargo.toml` and implement RSA-SHA256 JWT Service Account token minting in `google_auth`.
 - [x] 2. Remove `OAuthClientCredentials` and 3-legged OAuth endpoints from `synapto-plugin-google-chat`.
 - [x] 3. Remove People API calls (`people.googleapis.com`) and Workspace Events subscription loop (`maintain_subscriptions`) from `read.rs` and `reactions.rs`.
